@@ -1,0 +1,6 @@
+# Локальные ключи и сертификаты не коммитим
+custom.crt
+custom.key
+tls.crt
+tls.key
+*.pem

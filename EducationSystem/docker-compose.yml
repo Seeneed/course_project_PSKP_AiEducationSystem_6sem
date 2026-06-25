@@ -1,0 +1,78 @@
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: education-mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-YourStrong@Passw0rd}
+      MSSQL_PID: "Express"
+    ports:
+      - "14333:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost,1433 -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  db-init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: education-mssql-init
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mssql
+      DB_NAME: EducationSystem
+      DB_USER: sa
+      DB_PASSWORD: ${MSSQL_SA_PASSWORD:-YourStrong@Passw0rd}
+    volumes:
+      - ./database/CreateDatabaseAndTables.sql:/scripts/CreateDatabaseAndTables.sql:ro
+      - ./docker/mssql/init-db.sh:/scripts/init-db.sh:ro
+    command: /bin/sh /scripts/init-db.sh
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: education-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      PORT: 5000
+      DB_SERVER: mssql
+      DB_NAME: EducationSystem
+      DB_USER: sa
+      DB_PASSWORD: ${MSSQL_SA_PASSWORD:-YourStrong@Passw0rd}
+    depends_on:
+      mssql:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    expose:
+      - "5000"
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: education-frontend-nginx
+    depends_on:
+      - backend
+    ports:
+      # Как у многих локальных стеков: https://localhost и http://localhost (редирект на HTTPS)
+      - "80:80"
+      - "443:443"
+      # Запасные порты, если 80/443 заняты (IIS, другой софт)
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      # Положите сюда custom.crt + custom.key (см. DOCKER_GUIDE — mkcert), иначе при первом старте создастся self-signed.
+      - ./docker/nginx-certs:/etc/nginx/certs
+
+volumes:
+  mssql_data:
