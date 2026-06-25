@@ -64,14 +64,11 @@ services:
     depends_on:
       - backend
     ports:
-      # Как у многих локальных стеков: https://localhost и http://localhost (редирект на HTTPS)
       - "80:80"
       - "443:443"
-      # Запасные порты, если 80/443 заняты (IIS, другой софт)
       - "8080:80"
       - "8443:443"
     volumes:
-      # Положите сюда custom.crt + custom.key (см. DOCKER_GUIDE — mkcert), иначе при первом старте создастся self-signed.
       - ./docker/nginx-certs:/etc/nginx/certs
 
 volumes:
